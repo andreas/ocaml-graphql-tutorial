@@ -34,9 +34,27 @@ let github_request ~token ~query ~variables =
  *                    token:string -> 'a
  *)
 let executable_query (query, kvariables, parse) =
-  (* Complete me! *)
+  let open Lwt_result.Infix in
+  fun ~token -> (
+    kvariables (fun variables ->
+      github_request token query variables >|= fun rsp ->
+      parse rsp
+    )
+  )
 
 let find_repo = executable_query [%graphql {|
-  query FindRepo {
+  query FindRepo($owner: String!, $name: String!) {
+    repository(owner: $owner, name: $name) {
+      stargazers {
+        totalCount
+      }
+      issues(first: 5) {
+        nodes {
+          title
+          body
+          url
+        }
+      }
+    }
   }
 |}]
