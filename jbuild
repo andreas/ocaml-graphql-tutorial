@@ -1,0 +1,54 @@
+(jbuild_version 1)
+
+(library
+  (
+    (libraries (opam-lib.state))
+    (preprocess (pps (ppx_graphql)))
+    (modules (package))
+    (name package)
+  )
+)
+
+(library
+  (
+    (libraries (lwt tls cohttp.lwt uri))
+    (preprocess (pps (ppx_graphql)))
+    (preprocessor_deps ((file schema.json)))
+    (modules (github))
+    (name github)
+  )
+)
+
+(executable
+  (
+    (preprocess (pps (ppx_graphql)))
+    (libraries (github))
+    (modules (github_cli))
+    (name github_cli)
+  )
+)
+
+(alias
+  (
+    (name github_cli)
+    (deps (github_cli.exe))
+    (action (run ${<}))
+  )
+)
+
+(executable
+  (
+    (libraries (graphql graphql-lwt package github))
+    (preprocess (pps (ppx_graphql)))
+    (modules (server))
+    (name server)
+  )
+)
+
+(alias
+  (
+    (name server)
+    (deps (server.exe))
+    (action (run ${<}))
+  )
+)
