@@ -1,3 +1,4 @@
+open Lwt.Infix
 open Graphql_lwt
 
 module List = struct
@@ -16,7 +17,46 @@ module List = struct
     | x::xs -> take ~memo:(x::memo) xs ~n:(n-1)
 end
 
+type app_context = {
+  github_token : string;
+}
+
 let packages = Package.load_all ()
+
+let github_issue = Schema.(obj "GithubIssue"
+  ~fields:(fun issue -> [
+    field "title"
+      ~typ:(non_null string)
+      ~args:Arg.[]
+      ~resolve:(fun _ issue -> issue#title)
+    ;
+    field "body"
+      ~typ:(non_null string)
+      ~args:Arg.[]
+      ~resolve:(fun _ issue -> issue#body)
+    ;
+    field "url"
+      ~typ:(non_null string)
+      ~args:Arg.[]
+      ~resolve:(fun _ issue -> issue#url)
+    ;
+  ])
+)
+
+let github_repo = Schema.(obj "GithubRepo"
+  ~fields:(fun repo -> [
+    field "stars"
+      ~typ:(non_null int)
+      ~args:Arg.[]
+      ~resolve:(fun _ repo -> repo#stargazers#totalCount)
+    ;
+    field "issues"
+      ~typ:(list github_issue)
+      ~args:Arg.[]
+      ~resolve:(fun _ repo -> repo#issues#nodes)
+    ;
+  ])
+)
 
 let package = Schema.(obj "Package"
   ~fields:(fun _ -> [
@@ -29,6 +69,23 @@ let package = Schema.(obj "Package"
       ~typ:(non_null string)
       ~args:Arg.[]
       ~resolve:(fun _ pkg -> pkg.Package.version)
+    ;
+    field "git_repo"
+      ~typ:string
+      ~args:Arg.[]
+      ~resolve:(fun _ pkg -> pkg.Package.git_repo)
+    ;
+    io_field "github"
+      ~typ:github_repo
+      ~args:Arg.[]
+      ~resolve:(fun ctx pkg ->
+        match Package.github_owner_and_name pkg with
+        | None -> Lwt.return None
+        | Some (owner, name) ->
+            Github.find_repo ~token:ctx.github_token ~owner ~name () >|= function
+            | Ok rsp -> rsp#repository
+            | Error _ -> None
+      )
   ])
 )
 
@@ -65,5 +122,6 @@ let schema = Schema.(schema [
 )
 
 let () =
-  Server.start ~ctx:(fun () -> ()) schema
+  let github_token = Unix.getenv "GITHUB_TOKEN" in
+  Server.start ~ctx:(fun () -> { github_token }) schema
   |> Lwt_main.run
