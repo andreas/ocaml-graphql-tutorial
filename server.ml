@@ -58,7 +58,50 @@ let github_repo = Schema.(obj "GithubRepo"
   ])
 )
 
-let package = Schema.(obj "Package"
+let relop = Schema.(enum "Relop"
+  ~values:[
+    enum_value "EQ" ~value:`Eq;
+    enum_value "NEQ" ~value:`Neq;
+    enum_value "LT" ~value:`Lt;
+    enum_value "LEQ" ~value:`Leq;
+    enum_value "GT" ~value:`Gt;
+    enum_value "GEQ" ~value:`Geq;
+  ]
+)
+
+let version_constraint = Schema.(obj "VersionConstraint"
+  ~fields:(fun _ -> [
+    field "version"
+      ~typ:(non_null string)
+      ~args:Arg.[]
+      ~resolve:(fun _ (_, version) -> version)
+    ;
+    field "relop"
+      ~typ:(non_null relop)
+      ~args:Arg.[]
+      ~resolve:(fun _ (relop, _) -> relop)
+  ])
+)
+
+let rec dependency = lazy Schema.(obj "Dependency"
+  ~fields:(fun _ -> [
+    field "name"
+      ~typ:(non_null string)
+      ~args:Arg.[]
+      ~resolve:(fun _ (name, _) -> name)
+    ;
+    field "package"
+      ~typ:Lazy.(force package)
+      ~args:Arg.[]
+      ~resolve:(fun _ (name, _) -> Package.find_by_name packages name)
+    ;
+    field "version_constraint"
+      ~typ:version_constraint
+      ~args:Arg.[]
+      ~resolve:(fun _ (_, version_constraint) -> version_constraint)
+  ])
+)
+and package = lazy Schema.(obj "Package"
   ~fields:(fun _ -> [
     field "name"
       ~typ:(non_null string)
@@ -69,6 +112,11 @@ let package = Schema.(obj "Package"
       ~typ:(non_null string)
       ~args:Arg.[]
       ~resolve:(fun _ pkg -> pkg.Package.version)
+    ;
+    field "dependencies"
+      ~typ:(non_null (list (non_null Lazy.(force dependency))))
+      ~args:Arg.[]
+      ~resolve:(fun _ pkg -> pkg.Package.dependencies)
     ;
     field "git_repo"
       ~typ:string
@@ -98,7 +146,7 @@ let schema = Schema.(schema [
       )
     ;
     field "packages"
-      ~typ:(non_null (list (non_null package)))
+      ~typ:(non_null (list (non_null Lazy.(force package))))
       ~args:Arg.[
         arg' "page" ~typ:int ~default:1;
         arg' "per_page" ~typ:int ~default:10;
@@ -110,7 +158,7 @@ let schema = Schema.(schema [
       )
     ;
     field "package"
-      ~typ:package
+      ~typ:Lazy.(force package)
       ~args:Arg.[
         arg ~typ:(non_null string) "name"
       ]
