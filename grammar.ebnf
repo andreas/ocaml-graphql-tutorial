@@ -1,0 +1,3 @@
+Query ::= "query" ( QueryName "(" "$" VariableName ":" Type (", " "$" VariableName ":" Type)* ")")? SelectionSet
+SelectionSet ::= "{" Field+ "}"
+Field ::= FieldName ("(" (ArgumentName ":" Value) ("," ArgumentName ":" Value)* ")")? SelectionSet?
